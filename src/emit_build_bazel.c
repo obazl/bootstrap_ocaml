@@ -69,7 +69,8 @@ void emit_bazel_deps(FILE* ostream, int level, char *repo, char *pkg, obzl_meta_
 
     struct obzl_meta_property *deps_prop = obzl_meta_package_property(_pkg, pname);
     if ( deps_prop == NULL ) {
-        log_error("Prop '%s' not found.", pname);
+        char *pkg_name = obzl_meta_package_name(_pkg);
+        log_warn("Prop '%s' not found: %s.", pname, pkg_name);
         return;
     }
 
