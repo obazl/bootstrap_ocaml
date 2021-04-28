@@ -4,6 +4,8 @@ export CFLAGS=-std=c11 -O3
 all:
 	make -C src opam_bootstrap
 	mkdir -p ${HOME}/.local/bin
+	ls -l src
+	ls -l ${HOME}/.local/bin
 	cp -v src/opam_bootstrap ${HOME}/.local/bin
 
 # x:
