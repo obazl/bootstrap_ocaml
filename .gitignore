@@ -1,3 +1,14 @@
+*.log
+*.bin
+*.lib
+tmp
+
+# Makeheaders
+*.h
+metalexer.c
+metaparser.c
+opam_bootstrap
+
 # Prerequisites
 *.d
 
