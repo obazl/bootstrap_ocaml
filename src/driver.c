@@ -1,16 +1,18 @@
 #include <assert.h>
 #include <ctype.h>
 #include <errno.h>
-#include <libgen.h>
+ #include <libgen.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
+#if INTERFACE
 #ifdef LINUX                    /* FIXME */
 #include <linux/limits.h>
 #else // FIXME: macos test
 #include <limits.h>
+#endif
 #endif
 
 #include "log.h"
@@ -33,7 +35,8 @@ struct logging {
 
 EXPORT struct logging logger;
 
-struct obzl_meta_package *ast;
+char THE_METAFILE[PATH_MAX];
+struct obzl_meta_package *MAIN_PKG;
 
 LOCAL char *package_name_from_file_name(char *fname)
 {
@@ -90,6 +93,9 @@ EXPORT struct obzl_meta_package *obzl_meta_parse_file(char *fname)
         errno = -2;
         return NULL;
     }
+
+    THE_METAFILE[0] = '\0';
+    mystrcat(THE_METAFILE, fname);
 
     struct meta_lexer * lexer = malloc(sizeof(struct meta_lexer));
     lexer_init(lexer, buffer);
@@ -216,7 +222,7 @@ EXPORT struct obzl_meta_package *obzl_meta_parse_file(char *fname)
             log_set_quiet(logger.quiet);
             log_set_level(logger.parse_log_level);
 
-        Parse(pParser, tok, mtok, &ast); // , &sState);
+        Parse(pParser, tok, mtok, &MAIN_PKG); // , &sState);
 
         mtok = malloc(sizeof(union meta_token));
         if (logger.lex_verbosity == 0)
@@ -235,12 +241,12 @@ EXPORT struct obzl_meta_package *obzl_meta_parse_file(char *fname)
 
     log_trace("lex: end of input");
 
-    Parse(pParser, 0, mtok, &ast); // , &sState);
+    Parse(pParser, 0, mtok, &MAIN_PKG); // , &sState);
     ParseFree(pParser, free );
 
-    ast->name      = package_name_from_file_name(fname);
-    ast->directory = dirname(fname);
-    ast->metafile  = fname;
+    MAIN_PKG->name      = package_name_from_file_name(fname);
+    MAIN_PKG->directory = dirname(fname);
+    MAIN_PKG->metafile  = fname;
 
     if (logger.verbosity == 0)
         log_set_quiet(false);
@@ -253,7 +259,7 @@ EXPORT struct obzl_meta_package *obzl_meta_parse_file(char *fname)
     /* log_trace("PARSED %s", fname); */
 
     free(buffer);
-    return ast;
+    return MAIN_PKG;
 }
 
 EXPORT char *obzl_meta_version()

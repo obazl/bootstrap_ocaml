@@ -15,6 +15,7 @@
 
 #include "utarray.h"
 #include "uthash.h"
+#include "utstring.h"
 
 #include "log.h"
 
@@ -40,14 +41,15 @@ int rc;
 char work_buf[PATH_MAX];
 
 char outdir[PATH_MAX];
+char tgtroot[PATH_MAX];
+char tgtroot_bin[PATH_MAX];
+char tgtroot_lib[PATH_MAX];
+
 
 UT_array *opam_packages;
 
 char basedir[PATH_MAX];
 char coqlib[PATH_MAX];
-
-char tgtroot_bin[PATH_MAX];
-char tgtroot_lib[PATH_MAX];
 
 char symlink_src[PATH_MAX];
 char symlink_tgt[PATH_MAX];
@@ -97,8 +99,12 @@ void opam_config(char *_opam_switch, char *outdir)
      */
 
     char *opam_switch;
-    char *srcroot_bin;
-    char *srcroot_lib;
+    /* char *srcroot_bin; */
+    /* char *srcroot_lib; */
+    UT_string *srcroot_bin;
+    utstring_new(srcroot_bin);
+    UT_string *srcroot_lib;
+    utstring_new(srcroot_lib);
 
     char *tgt_bin = "bin";
     char *tgt_bin_hidden = "/.bin";
@@ -134,7 +140,8 @@ void opam_config(char *_opam_switch, char *outdir)
         log_fatal("FAIL: run_cmd(%s)\n", cmd);
         exit(EXIT_FAILURE);
     } else
-        srcroot_bin = strndup(result, PATH_MAX);
+        /* srcroot_bin = strndup(result, PATH_MAX); */
+        utstring_printf(srcroot_bin, "%s", result);
 
     cmd = "opam var lib";
     result = NULL;
@@ -143,11 +150,12 @@ void opam_config(char *_opam_switch, char *outdir)
         log_fatal("FAIL: run_cmd(%s)\n", cmd);
         exit(EXIT_FAILURE);
     } else
-        srcroot_lib = strndup(result, PATH_MAX);
+        /* srcroot_lib = strndup(result, PATH_MAX); */
+        utstring_printf(srcroot_lib, "%s", result);
 
     // STEP 0: install root WORKSPACE, BUILD files
 
-    // STEP 1: link opam dirs
+    // STEP 1: link opam bin, lib dirs
     // NOTE: root BUILD.bazel must contain 'exports_files([".bin/**"], [".lib/**"])'
 
     // FIXME: these dir symlinks can be done in starlark code; which way is better?
@@ -156,12 +164,12 @@ void opam_config(char *_opam_switch, char *outdir)
     workbuf[0] = '\0';
     mystrcat(workbuf, outdir);
     mystrcat(workbuf, tgt_bin_hidden);
-    rc = symlink(srcroot_bin, workbuf); // tgtroot_bin);
+    rc = symlink(utstring_body(srcroot_bin), workbuf); // tgtroot_bin);
     if (rc != 0) {
         errnum = errno;
         if (errnum != EEXIST) {
             perror(symlink_tgt);
-            log_error("symlink failure for %s -> %s\n", srcroot_bin, tgtroot_bin);
+            log_error("symlink failure for %s -> %s\n", utstring_body(srcroot_bin), tgtroot_bin);
             exit(EXIT_FAILURE);
         }
     }
@@ -169,31 +177,57 @@ void opam_config(char *_opam_switch, char *outdir)
     workbuf[0] = '\0';
     mystrcat(workbuf, outdir);
     mystrcat(workbuf, tgt_lib_hidden);
-    rc = symlink(srcroot_lib, workbuf); // tgtroot_lib);
+    rc = symlink(utstring_body(srcroot_lib), workbuf); // tgtroot_lib);
     if (rc != 0) {
         errnum = errno;
         if (errnum != EEXIST) {
             perror(symlink_tgt);
-            log_error("symlink failure for %s -> %s\n", srcroot_lib, tgtroot_lib);
+            log_error("symlink failure for %s -> %s\n", utstring_body(srcroot_lib), tgtroot_lib);
             exit(EXIT_FAILURE);
         }
     }
 
-    // STEP 2: mirror lib dir structure, adding BUILD.bazel files. no symlinks
-    mirror_tree(srcroot_lib,
-                /* tgtroot_lib, */
-                false, "META", handle_lib_meta);
-
-    mirror_tree(srcroot_bin,
+    /* always do bin */
+    mirror_tree(utstring_body(srcroot_bin),
                 /* tgtroot_bin, */
                 false, NULL, NULL);
+
+    if (utarray_len(opam_packages) == 0) {
+        log_debug("converting all META files in opam repo...");
+        mirror_tree(utstring_body(srcroot_lib),
+                    /* tgtroot_lib, */
+                    false, "META", handle_lib_meta);
+    } else {
+        log_debug("converting listed opam pkgs in %s", utstring_body(srcroot_lib));
+        UT_string *s;
+        utstring_new(s);
+        char **a_pkg = NULL;
+        /* log_trace("%*spkgs:", indent, sp); */
+        while ( (a_pkg=(char **)utarray_next(opam_packages, a_pkg))) {
+            utstring_clear(s);
+            utstring_concat(s, srcroot_lib);
+            utstring_printf(s, "/%s/%s", *a_pkg, "META");
+            /* log_debug("src root: %s", utstring_body(s)); */
+            /* log_trace("%*s'%s'", delta+indent, sp, *a_pkg); */
+            if ( ! access(utstring_body(s), R_OK) ) {
+                /* log_debug("FOUND: %s", utstring_body(s)); */
+                handle_lib_meta(utstring_body(srcroot_lib), *a_pkg, "META");
+            } else {
+                log_debug("NOT found: %s", utstring_body(s));
+            }
+        }
+    }
+    utstring_free(srcroot_bin);
+    utstring_free(srcroot_lib);
 }
 
-void handle_lib_meta(char *rootdir,
+int handle_lib_meta(char *rootdir,
                      char *pkgdir,
                      char *metafile)
 {
-    /* log_info("handle_lib_meta %s ; %s ; %s", rootdir, pkgdir, metafile); */
+    log_info("handle_lib_meta: %s ; %s ; %s", rootdir, pkgdir, metafile);
+
+    log_info("outdir: %s", tgtroot_lib);
 
     char buf[PATH_MAX];
     buf[0] = '\0';
@@ -226,15 +260,15 @@ void handle_lib_meta(char *rootdir,
             else
                 log_error("Error parsing %s", buf);
     } else {
-        log_trace("PARSED %s", buf);
+        log_warn("PARSED %s", buf);
 
-        emit_build_bazel(pkg, "opam", "lib");
+        /* dump_package(0, pkg); */
 
-        /* log_debug("%*sparsed name:      %s", indent, sp, obzl_meta_package_name(pkg)); */
-        /* log_debug("%*sparsed directory: %s", indent, sp, obzl_meta_package_dir(pkg)); */
-        /* log_debug("%*sparsed metafile:  %s", indent, sp, obzl_meta_package_src(pkg)); */
+        emit_build_bazel(outdir, "opam", "lib", pkg);
+
+        /* fclose(f); */
     }
-
+    return 0;
 }
 
 int main(int argc, char *argv[]) // , char **envp)
@@ -254,10 +288,10 @@ int main(int argc, char *argv[]) // , char **envp)
         log_error("getcwd failure");
         exit(EXIT_FAILURE);
     }
-    /* utarray_new(opam_packages, &ut_str_icd); */
+    utarray_new(opam_packages, &ut_str_icd);
 
 #ifdef DEBUG
-    char *opts = "b:o:s:v";     /* p: */
+    char *opts = "b:o:p:s:v";
 #else
     char *opts = "b:p:s:v";
 #endif
@@ -265,6 +299,14 @@ int main(int argc, char *argv[]) // , char **envp)
     int opt;
     while ((opt = getopt(argc, argv, opts)) != -1) {
         switch (opt) {
+        case '?':
+            /* log_debug("uknown opt: %c", optopt); */
+            exit(EXIT_FAILURE);
+            break;
+        case ':':
+            /* log_debug("uknown opt: %c", optopt); */
+            exit(EXIT_FAILURE);
+            break;
         case 'b':
             /* build_files */
             printf("option b: %s\n", optarg);
@@ -280,10 +322,10 @@ int main(int argc, char *argv[]) // , char **envp)
             the_buildfile->path = getenv(optarg);
             HASH_ADD_STR(buildfiles, name, the_buildfile);
             break;
-        /* case 'p': */
-        /*     printf("option p: %s\n", optarg); */
-        /*     utarray_push_back(opam_packages, &optarg); */
-        /*     break; */
+        case 'p':
+            printf("option p: %s\n", optarg);
+            utarray_push_back(opam_packages, &optarg);
+            break;
         case 's':
             printf("option s: %s\n", optarg);
             opam_switch = strndup(optarg, PATH_MAX);
@@ -327,5 +369,6 @@ int main(int argc, char *argv[]) // , char **envp)
 
 #ifdef DEBUG
     log_info("outdir: %s", outdir);
+    log_info("FINISHED");
 #endif
 }

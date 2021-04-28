@@ -33,7 +33,7 @@ int errnum;
 int rc;
 
 #if INTERFACE
-typedef void (*file_handler)(char *rootdir, char *pkg, char *metafile);
+typedef int (*file_handler)(char *rootdir, char *pkg, char *metafile);
 #endif
 
 char work_buf[PATH_MAX];
@@ -632,7 +632,11 @@ int link_dir_rec(char *basedir,
                     /* (or invoke callback) */
                     if ( handle_meta ) {
                         if (strncmp(dir_entry->d_name, file_to_handle, PATH_MAX) == 0) {
-                            handle_meta(basedir, currpkg, dir_entry->d_name);
+                            int rc = handle_meta(basedir, currpkg, dir_entry->d_name);
+                            if (rc) {
+                                log_error("handle_meta fail for %s/%s", currpkg, dir_entry->d_name);
+                                return rc;
+                            }
                         }
                         // FIXME: check for foo.META
                     }

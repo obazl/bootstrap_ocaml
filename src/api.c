@@ -41,25 +41,15 @@ EXPORT obzl_meta_package *obzl_meta_entry_package(obzl_meta_entry *e)
     return e->package;
 }
 
-/* **************************************************************** */
-EXPORT int obzl_meta_flags_count(obzl_meta_flags *_flags)
-{
-    return utarray_len(_flags->list);
-}
+/* /\* **************************************************************** *\/ */
+/* EXPORT int obzl_meta_flags_count(obzl_meta_flags *_flags) */
+/* { */
+/*     return utarray_len(_flags->list); */
+/* } */
 
-EXPORT obzl_meta_flag *obzl_meta_flags_nth(obzl_meta_flags *_flags, int _i)
-{
-    return utarray_eltptr(_flags->list, _i);
-}
+/* EXPORT obzl_meta_flag *obzl_meta_flags_nth(obzl_meta_flags *_flags, int _i) */
+/* { */
+/*     return utarray_eltptr(_flags->list, _i); */
+/* } */
 
-/* **************************************************************** */
-EXPORT char *obzl_meta_flag_name(obzl_meta_flag *flag)
-{
-    return flag->s;
-}
-
-EXPORT bool obzl_meta_flag_polarity(obzl_meta_flag *flag)
-{
-    return flag->polarity;
-}
 

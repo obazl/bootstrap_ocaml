@@ -1,5 +1,7 @@
 # MAKEFLAGS=-s
 export CFLAGS=-std=c11 -O3
+export DEBUG=
+export DEBUG_TRACE=
 
 all:
 	make -C src opam_bootstrap

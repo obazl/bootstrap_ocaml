@@ -96,7 +96,7 @@ struct obzl_meta_settings *obzl_meta_settings_new()
 /* void obzl_meta_setting_copy(obzl_meta_setting *dst, const obzl_meta_setting *src) { */
 void obzl_meta_setting_copy(void *_dst, const void *_src) {
 #if DEBUG_TRACE
-    log_trace("obzl_meta_setting_copy(dst=%p,  src=%p)", dst, src);
+    log_trace("obzl_meta_setting_copy(dst=%p,  src=%p)", _dst, _src);
 #endif
     struct obzl_meta_setting *dst = (struct obzl_meta_setting*)_dst;
     struct obzl_meta_setting *src = (struct obzl_meta_setting*)_src;

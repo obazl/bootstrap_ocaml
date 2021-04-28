@@ -34,6 +34,62 @@ EXPORT obzl_meta_entries *obzl_meta_package_entries(obzl_meta_package *_pkg)
     return _pkg->entries;
 }
 
+EXPORT bool obzl_meta_package_has_archives(obzl_meta_package *_pkg)
+{
+    //FIXME: use a has_archives flag
+
+    obzl_meta_entries *entries = _pkg->entries;
+    obzl_meta_entry *e = NULL;
+    for (int i = 0; i < obzl_meta_entries_count(_pkg->entries); i++) {
+        e = obzl_meta_entries_nth(_pkg->entries, i);
+        if (e->type == OMP_PROPERTY) {
+            if (strncmp(e->property->name, "archive", 7) == 0) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+EXPORT bool obzl_meta_package_has_plugins(obzl_meta_package *_pkg)
+{
+    //FIXME: use a has_plugins flag
+
+    obzl_meta_entries *entries = _pkg->entries;
+    obzl_meta_entry *e = NULL;
+    for (int i = 0; i < obzl_meta_entries_count(_pkg->entries); i++) {
+        e = obzl_meta_entries_nth(_pkg->entries, i);
+        if (e->type == OMP_PROPERTY) {
+            if (strncmp(e->property->name, "plugin", 7) == 0) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+EXPORT bool obzl_meta_package_has_subpackages(obzl_meta_package *_pkg)
+{
+    //FIXME: use a has_subpackages flag
+    log_debug("obzl_meta_package_has_subpackages");
+    obzl_meta_entries *entries = _pkg->entries;
+    obzl_meta_entry *e = NULL;
+
+    for (int i = 0; i < obzl_meta_entries_count(entries); i++) {
+        e = obzl_meta_entries_nth(_pkg->entries, i);
+        log_debug("entry type: %d", e->type);
+        if (e->type == OMP_PROPERTY) {
+            log_debug("Property entry: %s", e->property->name);
+        } else {
+            if (e->type == OMP_PACKAGE) {
+                log_debug("Package entry: %s", e->package->name);
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 EXPORT obzl_meta_property *obzl_meta_package_property(obzl_meta_package *_pkg, char *_name)
 {
 #if DEBUG_TRACE

@@ -1,6 +1,13 @@
 CFLAGS+=-std=c11 -I../vendored/logc -I../vendored/uthash
+ifdef $(DEBUG)
+CFLAGS+=-DDEBUG -g -O0
+else
 CFLAGS+=-O3
-# CFLAGS+=-DDEBUG -g
+endif
+
+ifdef $(DEBUG_TRACE)
+CFLAGS+=-DDEBUG_TRACE
+endif
 
 SRCS=api.c \
 driver.c \

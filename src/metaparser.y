@@ -17,7 +17,7 @@ static char *sp = " ";
 #endif
 }
 
-%extra_argument { struct obzl_meta_package **ast}
+%extra_argument { struct obzl_meta_package **the_metafile}
 
 
 %token PACKAGE VERSION DESCRIPTION REQUIRES DIRECTORY VNAME FLAGS WORD WORDS.
@@ -162,7 +162,7 @@ package(PKG) ::= entries(ENTRIES) . {
 #if DEBUG_TRACE
     dump_package(0, PKG);
 #endif
-    *ast = PKG;
+    *the_metafile = PKG;
 }
 
 entries(ENTRIES) ::= entry(ENTRY) . {
@@ -320,6 +320,8 @@ entry(ENTRY) ::= PACKAGE(PKG) LPAREN entries(ENTRIES) RPAREN. {
     /* ENTRY = handle_primitive_prop(PACKAGE, PKG); */
     struct obzl_meta_package *new_package = (struct obzl_meta_package*)calloc(sizeof(struct obzl_meta_package), 1);
     new_package->name = PKG->s;
+    /* new_package->directory = (*the_metafile)->directory; */
+    new_package->metafile = THE_METAFILE;
     new_package->entries = ENTRIES;
     /* dump_package(indent, new_package); */
 
