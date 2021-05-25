@@ -15,9 +15,6 @@ LOCAL char *sp = " ";
 
 
 /* **************************************************************** */
-/* ****************
-   struct obzl_meta_entry_s
-   **************** */
 #if INTERFACE
 enum obzl_meta_entry_type_e { OMP_PROPERTY, OMP_PACKAGE };
 struct obzl_meta_entry {
@@ -35,6 +32,13 @@ struct obzl_meta_entries {
 
 EXPORT UT_icd entry_icd = {sizeof(struct obzl_meta_entry), NULL, entry_copy, entry_dtor};
 
+/* **************************************************************** */
+EXPORT int obzl_meta_entries_count(obzl_meta_entries *_entries)
+{
+    return utarray_len(_entries->list);
+}
+
+/* **************** */
 EXPORT obzl_meta_entry *obzl_meta_entries_nth(obzl_meta_entries *_entries, int _i)
 {
     if (_i < 0) {
@@ -50,6 +54,27 @@ EXPORT obzl_meta_entry *obzl_meta_entries_nth(obzl_meta_entries *_entries, int _
     exit(EXIT_FAILURE);
 }
 
+/* **************** */
+EXPORT obzl_meta_property *obzl_meta_entries_property(obzl_meta_entries *_entries, char *_name)
+{
+#if DEBUG_TRACE
+    /* log_trace("obzl_meta_entries_property('%s')", _name); */
+#endif
+    /* utarray_find requires a sort; not worth the cost */
+    obzl_meta_entry *e = NULL;
+    for (int i = 0; i < obzl_meta_entries_count(_entries); i++) {
+        e = obzl_meta_entries_nth(_entries, i);
+        if (e->type == OMP_PROPERTY) {
+            if (strncmp(e->property->name, _name, 256) == 0) {
+                return e->property;
+            }
+        }
+        /* log_debug("iteration %d", i); */
+    }
+    return NULL;
+}
+
+/* **************** */
 void entry_copy(void *_dst, const void *_src) {
     struct obzl_meta_entry *dst = (struct obzl_meta_entry*)_dst;
     struct obzl_meta_entry *src = (struct obzl_meta_entry*)_src;
@@ -104,6 +129,27 @@ void normalize_entries(obzl_meta_entries *entries, obzl_meta_entry *_entry)
     if ( !matched ) {
         utarray_push_back(entries->list, _entry);
     }
+}
+
+/* **************************************************************** */
+EXPORT obzl_meta_entry *obzl_meta_entry_new()
+{
+    return (obzl_meta_entry*)calloc(sizeof(obzl_meta_entry), 1);
+}
+
+EXPORT enum obzl_meta_entry_type_e obzl_meta_entry_type(obzl_meta_entry *e)
+{
+    return e->type;
+}
+
+EXPORT obzl_meta_property *obzl_meta_entry_property(obzl_meta_entry *e)
+{
+    return e->property;
+}
+
+EXPORT obzl_meta_package *obzl_meta_entry_package(obzl_meta_entry *e)
+{
+    return e->package;
 }
 
 /* **************************************************************** */

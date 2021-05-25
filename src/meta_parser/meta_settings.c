@@ -11,10 +11,54 @@ static int delta = 2;
 static char *sp = " ";
 
 
+#if INTERFACE
+enum obzl_meta_opcode_e { OP_SET, OP_UPDATE };
+struct obzl_meta_setting {
+    obzl_meta_flags *flags;     /* FIXME: NULL if no flags breaks obzl_meta_flags_count on settings */
+    /* UT_array *flags;       /\* array of struct obzl_meta_flag *\/ */
+    enum obzl_meta_opcode_e opcode;
+    obzl_meta_values *values;
+    /* UT_array *values;            /\* array of strings *\/ */
+};
+
+struct obzl_meta_settings {
+    UT_array *list;             /* list of obzl_meta_setting* */
+};
+#endif
+
+UT_icd obzl_meta_setting_icd = {
+    sizeof(obzl_meta_setting), NULL,
+    obzl_meta_setting_copy,
+    obzl_meta_setting_dtor
+};
+
 /* **************************************************************** */
 EXPORT int obzl_meta_settings_count(obzl_meta_settings *_settings)
 {
     return utarray_len(_settings->list);
+}
+
+EXPORT int obzl_meta_settings_flag_count(obzl_meta_settings *_settings, char *_flag, bool polarity)
+{
+    int ct = 0;
+    obzl_meta_setting *setting = NULL;
+    obzl_meta_flags *flags;
+    for(setting  = utarray_front(_settings->list);
+        setting != NULL;
+        setting  = utarray_next(_settings->list, setting)) {
+
+        if (obzl_meta_setting_has_flag(setting, _flag, polarity)) {
+            ct++;
+        }
+    }
+    return ct;
+}
+
+EXPORT int obzl_meta_setting_has_flag(obzl_meta_setting *_setting, char *_flag, bool polarity)
+{
+    int ct;
+    obzl_meta_flags *flags = obzl_meta_setting_flags(_setting);
+    return obzl_meta_flags_has_flag(flags, _flag, polarity);
 }
 
 EXPORT obzl_meta_setting *obzl_meta_settings_nth(obzl_meta_settings *_settings, int _i)
@@ -36,27 +80,6 @@ EXPORT obzl_meta_values *obzl_meta_setting_values(obzl_meta_setting *_setting)
 {
     return _setting->values;
 }
-
-#if INTERFACE
-enum obzl_meta_opcode_e { OP_SET, OP_UPDATE };
-struct obzl_meta_setting {
-    obzl_meta_flags *flags;
-    /* UT_array *flags;       /\* array of struct obzl_meta_flag *\/ */
-    enum obzl_meta_opcode_e opcode;
-    obzl_meta_values *values;
-    /* UT_array *values;            /\* array of strings *\/ */
-};
-
-struct obzl_meta_settings {
-    UT_array *list;             /* list of obzl_meta_setting* */
-};
-#endif
-
-UT_icd obzl_meta_setting_icd = {
-    sizeof(obzl_meta_setting), NULL,
-    obzl_meta_setting_copy,
-    obzl_meta_setting_dtor
-};
 
 struct obzl_meta_setting *obzl_meta_setting_new(char *flags,
                                                 enum obzl_meta_opcode_e opcode,

@@ -1,7 +1,11 @@
 #include <stdbool.h>
 #include <stdio.h>
+
+#if EXPORT_INTERFACE
 #include "utarray.h"
 #include "uthash.h"
+#include "utstring.h"
+#endif
 
 #include "log.h"
 #include "meta_flags.h"
@@ -10,10 +14,43 @@ static int indent = 2;
 static int delta = 2;
 static char *sp = " ";
 
+#if INTERFACE
+struct config_setting {
+    char name[128];              /* key */
+    char label[128];
+    obzl_meta_flags *flags;
+    UT_hash_handle hh;
+};
+#endif
+struct config_setting *the_config_settings;
+
+/* ****************************************************************
+   struct obzl_meta_flag_s
+   **************************************************************** */
+#if INTERFACE
+struct obzl_meta_flag {
+    bool polarity;
+    char *s;
+};
+
+struct obzl_meta_flags {
+    UT_array *list;
+};
+#endif
+
+UT_icd flag_icd = {sizeof(struct obzl_meta_flag), NULL, flag_copy, flag_dtor};
+
 /* **************************************************************** */
 EXPORT int obzl_meta_flags_count(obzl_meta_flags *_flags)
 {
-    return utarray_len(_flags->list);
+    if (_flags == NULL)
+        return 0;
+    if (_flags->list) {
+        int ct = utarray_len(_flags->list);
+        return ct;
+    } else {
+        return 0;
+    }
 }
 
 EXPORT obzl_meta_flag *obzl_meta_flags_nth(obzl_meta_flags *_flags, int _i)
@@ -31,21 +68,6 @@ EXPORT bool obzl_meta_flag_polarity(obzl_meta_flag *flag)
 {
     return flag->polarity;
 }
-/* ****************************************************************
-   struct obzl_meta_flag_s
-   **************************************************************** */
-#if INTERFACE
-struct obzl_meta_flag {
-    bool polarity;
-    char *s;
-};
-
-struct obzl_meta_flags {
-    UT_array *list;
-};
-#endif
-
-UT_icd flag_icd = {sizeof(struct obzl_meta_flag), NULL, flag_copy, flag_dtor};
 
 void flag_copy(void *_dst, const void *_src) {
 #if DEBUG_TRACE
@@ -137,7 +159,24 @@ void flags_dtor(obzl_meta_flags *old_flags) {
     free(old_flags);
 }
 
-char *obzl_meta_flags_to_string(obzl_meta_flags *flags)
+bool obzl_meta_flags_has_flag(obzl_meta_flags *_flags, char *_flag, bool polarity)
+{
+    if (_flags) {
+        int ct = obzl_meta_flags_count(_flags);
+        struct obzl_meta_flag *a_flag = NULL;
+        for (int i=0; i < ct; i++) {
+            a_flag = obzl_meta_flags_nth(_flags, i);
+            if ( a_flag->polarity == polarity ) {
+                if (strncmp(a_flag->s, _flag, 32) == 0) {
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
+}
+
+char *obzl_meta_flags_to_comment(obzl_meta_flags *flags)
 {
 #ifdef DEBUG_TRACE
     log_trace("%*obzl_meta_flags_to_string", indent, sp);
@@ -157,6 +196,8 @@ char *obzl_meta_flags_to_string(obzl_meta_flags *flags)
                 struct obzl_meta_flag *a_flag = NULL;
                 while ( (a_flag=(struct obzl_meta_flag*)utarray_next(flags->list, a_flag))) {
                     /* printf("%*s%s (polarity: %d)\n", delta+indent, sp, a_flag->s, a_flag->polarity); */
+                    if ( !a_flag->polarity )
+                        mystrcat(buf, "-");
                     mystrcat(buf, a_flag->s);
                     mystrcat(buf, ", ");
                 }
@@ -171,59 +212,115 @@ char *obzl_meta_flags_to_string(obzl_meta_flags *flags)
     }
 }
 
-char *obzl_meta_flags_to_condition_name(obzl_meta_flags *flags)
+/*
+  rc: true: has flags; false: has no flags
+  flag ppx_driver is ignored
+ */
+bool obzl_meta_flags_to_condition_name(obzl_meta_flags *flags, UT_string *_cname)
 {
 #ifdef DEBUG_TRACE
     log_trace("%*obzl_meta_flags_to_condition_name", indent, sp);
 #endif
-    char *buf = (char*)calloc(512, 1);
+    /* char *buf = (char*)calloc(512, 1); */
+    /* UT_string *buf; */
+    /* utstring_new(buf); */
+    utstring_clear(_cname);
+
+    struct obzl_meta_flag *a_flag;
 
     if (flags == NULL) {
-        /* printf("%*sflags: none\n", indent, sp); */
-        return buf;
+        return false;
     } else {
         if ( flags->list ) {
             if (utarray_len(flags->list) == 0) {
                 /* printf("%*sflags ct: 0\n", indent, sp); */
-                return buf;
+                return false;
             } else {
                 if (utarray_len(flags->list) == 1) {
-                    struct obzl_meta_flag *a_flag = obzl_meta_flags_nth(flags, 0);
-
-                    // "standard predicates have predefined select labels:
-                    // byte, native:  @ocaml//mode:byte
-                    // toploop, create_toploop
-                    // mt, mt_posix, mt_vm: @opam//cfg/mt:std, @opam/cfg/mt:posix, @opam/cfg/mt:vm
-                    //  cmd line:  --@opam//cfg/mt=posix
-                    // gprof, autolink, preprocessor,
-                    // syntax, plugin (legacy)
-
-                    // other "well-known" predicates:
-                    // ppx_driver, custom_ppx: @ppx//cfg:driver, @ppx//cfg:custom
-                    // ??? should not be global?
-
-                    // if 'byte' or 'native', use @ocaml//mode:bytecode, @ocaml//mode:native
-                    // otherwise, use @opam//cfg:foo
-
-                    mystrcat(buf, "@opam//cfg:");
-                    mystrcat(buf, a_flag->s);
-                    return buf;
-                } else {
-                    /* log_trace("%*sflags ct: %d", indent, sp, utarray_len(flags->list)); */
-                    struct obzl_meta_flag *a_flag = NULL;
-                    while ( (a_flag=(struct obzl_meta_flag*)utarray_next(flags->list, a_flag))) {
-                        /* printf("%*s%s (polarity: %d)\n", delta+indent, sp, a_flag->s, a_flag->polarity); */
-                        mystrcat(buf, a_flag->s);
-                        mystrcat(buf, "_");
+                    a_flag = obzl_meta_flags_nth(flags, 0);
+                    if (strncmp(a_flag->s, "byte", 4) == 0) {
+                        utstring_printf(_cname, "@ocaml//mode:bytecode");
+                        return true; // _cname;
                     }
-                    /* printf("buf: %s\n", buf); */
-                    return buf;
+                    if (strncmp(a_flag->s, "native", 6) == 0) {
+                        utstring_printf(_cname, "@ocaml//mode:native");
+                        return true; // _cname;
+                    }
+                    if (strncmp(a_flag->s, "ppx_driver", 10) == 0) {
+                        /* we do not treat 'ppx_driver' as a flag */
+                        /* utstring_printf(_cname, "//conditions:default"); */
+                        utstring_printf(_cname, ":custom_ppx_enabled"); /* FIXME */
+                        return true;
+                    }
+
+                    utstring_printf(_cname, "%s", "@opam//cfg:");
+                    if ( !a_flag->polarity ) /* '-' prefix */
+                        utstring_printf(_cname, "no_");
+                    utstring_printf(_cname, "%s", a_flag->s);
+                    return true; // _cname;
+                } else {
+                    /* compound condition */
+                    int ct = utarray_len(flags->list); // obzl_meta_flags_count(flags);
+                    log_trace("%*sflags ct: %d", indent, sp, ct);
+                    char config_name[128];
+                    config_name[0] = '\0';
+                    struct obzl_meta_flag *a_flag = NULL;
+                    int saw_ppx_driver = 0;
+                    for (int i=0; i < ct; i++) {
+                        a_flag = obzl_meta_flags_nth(flags, i);
+                        if (strncmp(a_flag->s, "ppx_driver", 10) == 0) {
+                            /* we do not treat 'ppx_driver' as a flag */
+                            saw_ppx_driver++;
+                            continue;
+                        }
+                        if (strncmp(a_flag->s, "byte", 4) == 0) {
+                            if (saw_ppx_driver>0) {
+                                utstring_printf(_cname, "@ocaml//mode:bytecode");
+                                return true;
+                            }
+                        }
+                        if (strncmp(a_flag->s, "native", 6) == 0) {
+                            if (saw_ppx_driver>0) {
+                                utstring_printf(_cname, "@ocaml//mode:native");
+                                return true;
+                            }
+                        }
+                        if (strncmp(a_flag->s, "custom_ppx", 10) == 0) {
+                            if ( !a_flag->polarity ) {
+                                /* mystrcat(config_name, "//conditions:default"); /\* FIXME *\/ */
+                                utstring_printf(_cname, "//conditions:default");
+                                return true;
+                            } else {
+                                /* empirically, only '-custom_ppx' ever occurs */
+                                log_error("Unexpected positive flag 'custom_ppx'");
+                            }
+                        }
+                        if (i-saw_ppx_driver > 0) mystrcat(config_name, "_");
+                        log_debug("%*s%s (polarity: %d)", delta+indent, sp, a_flag->s, a_flag->polarity);
+                        if ( !a_flag->polarity ) /* '-' prefix */
+                            if (saw_ppx_driver == 0)
+                                mystrcat(config_name, "no_");
+                        mystrcat(config_name, a_flag->s);
+                    }
+                    /* register compound flags, so we can generate config_setting rules */
+                    struct config_setting *a_condition;
+                    utstring_printf(_cname, "@opam//cfg:%s", config_name);
+                    HASH_FIND_STR(the_config_settings, config_name, a_condition);  /* already in the hash? */
+                    if (a_condition == NULL) {
+                        a_condition = calloc(sizeof(struct config_setting), 1);
+                        strncpy(a_condition->name, config_name, 128);
+                        strncpy(a_condition->label, utstring_body(_cname), 128);
+                        a_condition->flags = flags;
+                        HASH_ADD_STR(the_config_settings, name, a_condition);
+                    }
+                    /* printf("_cname: %s\n", _cname); */
+                    return true; // _cname;
                 }
             }
         } else {
             /* printf("%*sflags none: 0\n", indent, sp); */
             /* log_debug("%*sflags: none", indent, sp); */
-            return buf;
+            return false; // _cname;
         }
     }
 }

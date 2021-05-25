@@ -1,4 +1,4 @@
-MAKEFLAGS=-s
+# MAKEFLAGS=-s
 
 log.o:
 	$(CC) $(CFLAGS) -c log.c -o log.o

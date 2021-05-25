@@ -10,18 +10,16 @@ static int indent = 2;
 static int delta = 2;
 static char *sp = " ";
 
+/*
+  ocamlfind special properties:
 
-/* **************************************************************** */
-EXPORT char *obzl_meta_property_name(obzl_meta_property *prop)
-{
-    return prop->name;
-}
+  in lib/threads/META:
+      type_of_threads = "posix"
+      browse_interfaces = " Unit name: Condition Unit name: Event Unit name: Mutex Unit name: Thread Unit name: ThreadUnix "
+      warning(-mt) = "Linking problems may arise because of the missing -thread or -vmthread switch"
+      warning(-mt_vm,-mt_posix) = "Linking problems may arise because of the missing -thread or -vmthread switch"
 
-
-EXPORT obzl_meta_settings *obzl_meta_property_settings(obzl_meta_property *prop)
-{
-    return prop->settings;
-}
+ */
 
 #if INTERFACE
 struct obzl_meta_property {
@@ -33,6 +31,27 @@ struct obzl_meta_property {
 
 /* **************************************************************** */
 UT_icd property_icd = {sizeof(struct obzl_meta_property), NULL, property_copy, property_dtor};
+
+/* **************************************************************** */
+EXPORT char *obzl_meta_property_name(obzl_meta_property *prop)
+{
+    return prop->name;
+}
+
+EXPORT obzl_meta_value obzl_meta_property_value(obzl_meta_property *prop)
+{
+    obzl_meta_setting *setting = utarray_eltptr(prop->settings->list, 0);
+    obzl_meta_value *v = utarray_eltptr(setting->values->list, 0);
+    if (v)
+        return *v;
+    else
+        return NULL;
+}
+
+EXPORT obzl_meta_settings *obzl_meta_property_settings(obzl_meta_property *prop)
+{
+    return prop->settings;
+}
 
 struct obzl_meta_property *obzl_meta_property_new(char *name)
 {

@@ -17,10 +17,11 @@ static char *sp = " ";
 #endif
 }
 
-%extra_argument { struct obzl_meta_package **the_metafile}
+%extra_argument { struct obzl_meta_package *the_root_pkg}
 
 
-%token PACKAGE VERSION DESCRIPTION REQUIRES DIRECTORY VNAME FLAGS WORD WORDS.
+%token PACKAGE VERSION DESCRIPTION DIRECTORY VNAME FLAGS WORD WORDS.
+%token  REQUIRES PPX_RUNTIME_DEPS .
 %token WARNING ERROR.
 %token DQ EQ PLUSEQ LPAREN RPAREN.
 
@@ -60,18 +61,6 @@ static char *sp = " ";
     log_trace("freeing property");
     /* free($$); */
 }
-
-/* %type simple_prop { struct obzl_meta_property* } */
-/* %destructor simple_prop { */
-/*     log_trace("freeing simple_prop"); */
-/*     /\* free($$); *\/ */
-/* } */
-
-/* %type requires { UT_array* } // { struct obzl_meta_property* } */
-/* %destructor requires { */
-/*     log_trace("freeing requires"); */
-/*     /\* free($$); *\/ */
-/* } */
 
 %type opcode { enum obzl_meta_opcode_e }
 
@@ -156,13 +145,18 @@ package(PKG) ::= entries(ENTRIES) . {
     log_trace("  package (PKG)");
     log_trace("  entries (ENTRIES)");
     dump_entries(0, ENTRIES);
+    log_trace("xxxxxxxxxxxxxxxx");
 #endif
-    PKG = (struct obzl_meta_package*)calloc(sizeof(struct obzl_meta_package), 1);
-    PKG->entries = ENTRIES;
+    /* PKG = (struct obzl_meta_package*)calloc(sizeof(struct obzl_meta_package), 1); */
+    /* PKG->entries = ENTRIES; */
+    the_root_pkg->entries = ENTRIES;
+    /* *the_root_pkg = PKG; */
+    PKG = the_root_pkg;
 #if DEBUG_TRACE
+    log_debug("DUMPING PKG");
     dump_package(0, PKG);
+    log_debug("DUMPED PKG");
 #endif
-    *the_metafile = PKG;
 }
 
 entries(ENTRIES) ::= entry(ENTRY) . {
@@ -314,14 +308,18 @@ entry(ENTRY) ::= PACKAGE(PKG) LPAREN entries(ENTRIES) RPAREN. {
     log_trace(">>entry ::= PACKAGE LPAREN entries RPAREN");
     log_trace("  entry lhs(ENTRY): %p", ENTRY);
     log_trace("  entries rhs(ENTRIES)");
+    log_trace("  the_root_pkg->name: %s", the_root_pkg->name);
+    log_trace("  the_root_pkg->directory: %s", the_root_pkg->directory);
+    log_trace("  the_root_pkg->metafile: %s", the_root_pkg->metafile);
     /* entries: utarray of struct obzl_meta_entry */
     dump_entries(indent, ENTRIES);
 #endif
     /* ENTRY = handle_primitive_prop(PACKAGE, PKG); */
     struct obzl_meta_package *new_package = (struct obzl_meta_package*)calloc(sizeof(struct obzl_meta_package), 1);
     new_package->name = PKG->s;
-    /* new_package->directory = (*the_metafile)->directory; */
-    new_package->metafile = THE_METAFILE;
+    /* directory will be filled in during post-processing, from parent and directory prop. */
+    /* new_package->directory = the_root_pkg->directory; */
+    new_package->metafile = the_root_pkg->metafile; // THE_METAFILE;
     new_package->entries = ENTRIES;
     /* dump_package(indent, new_package); */
 
@@ -439,6 +437,57 @@ entry(ENTRY) ::= REQUIRES FLAGS(FLAGS) opcode(OPCODE) words(WS) . {
     /* new_prop->setting->flags = obzl_meta_flags_new_tokenized(FLAGS->s); */
     /* new_prop->setting->opcode = OPCODE; */
     /* new_prop->setting->values = WS; */
+
+    struct obzl_meta_entry *new_entry= (struct obzl_meta_entry*)malloc(sizeof(struct obzl_meta_entry));
+    new_entry->type = OMP_PROPERTY;
+    new_entry->property = new_prop;
+
+    ENTRY = new_entry;
+    /* log_trace("output:"); */
+    /* dump_entry(0, ENTRY); */
+}
+
+
+/* **************************************************************** */
+/* special case: PPX_RUNTIME_DEPS */
+/*  words in value string for requires must be validated. we do this here instead of in the lexer. */
+entry(ENTRY) ::= PPX_RUNTIME_DEPS opcode(OPCODE) words(WS) . {
+#if DEBUG_TRACE
+    log_trace("\n");
+    log_trace(">>entry ::= PPX_RUNTIME_DEPS opcode words");
+    log_trace("%*sentry (ENTRY)", indent, sp);
+    log_trace("%*sopcode (OPCODE): %d", indent, sp, OPCODE);
+    log_trace("%*swords (WS)", indent, sp);
+#endif
+
+    struct obzl_meta_property *new_prop= obzl_meta_property_new(strdup("ppx_runtime_deps"));
+
+    struct obzl_meta_setting *new_setting = obzl_meta_setting_new(NULL, OPCODE, WS);
+    utarray_push_back(new_prop->settings->list, new_setting);
+
+    struct obzl_meta_entry *new_entry= (struct obzl_meta_entry*)malloc(sizeof(struct obzl_meta_entry));
+    new_entry->type = OMP_PROPERTY;
+    new_entry->property = new_prop;
+
+    ENTRY = new_entry;
+    /* dump_entry(delta+indent, ENTRY); */
+}
+
+entry(ENTRY) ::= PPX_RUNTIME_DEPS FLAGS(FLAGS) opcode(OPCODE) words(WS) . {
+#if DEBUG_TRACE
+    log_trace("\n");
+    log_trace(">>entry ::= PPX_RUNTIME_DEPS LPAREN flag RPAREN opcode words");
+    log_trace("%*sentry (ENTRY)", indent, sp);
+    log_trace("%*sflags (FLAGS): %s", indent, sp, FLAGS->s);
+    /* dump_flags(FLAGS); */
+    log_trace("%*sopcode (OPCODE): %d", indent, sp, OPCODE);
+    log_trace("%*swords (WS)", indent, sp);
+    /* dump_values(WS); */
+#endif
+    struct obzl_meta_property *new_prop= obzl_meta_property_new(strdup("ppx_runtime_deps"));
+
+    struct obzl_meta_setting *new_setting = obzl_meta_setting_new(FLAGS->s, OPCODE, WS);
+    utarray_push_back(new_prop->settings->list, new_setting);
 
     struct obzl_meta_entry *new_entry= (struct obzl_meta_entry*)malloc(sizeof(struct obzl_meta_entry));
     new_entry->type = OMP_PROPERTY;

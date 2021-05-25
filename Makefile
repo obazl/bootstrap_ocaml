@@ -4,11 +4,12 @@ export DEBUG=
 export DEBUG_TRACE=
 
 all:
-	make -C src opam_bootstrap
+	$(MAKE) -C src opam_bootstrap
 	mkdir -p ${HOME}/.local/bin
-	ls -l src
-	ls -l ${HOME}/.local/bin
-	cp -v src/opam_bootstrap ${HOME}/.local/bin
+	cp src/opam_bootstrap ${HOME}/.local/bin
+
+# ls -l src
+# ls -l ${HOME}/.local/bin
 
 # x:
 # 	make -C vendored/makeheaders
@@ -19,4 +20,5 @@ clean:
 	make -C vendored/makeheaders clean
 	make -C vendored/lemon clean
 	make -C vendored/logc clean
+	make -C src/meta_parser clean
 	make -C src clean

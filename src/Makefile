@@ -1,4 +1,6 @@
+# MAKEFLAGS=-s
 CFLAGS+=-std=c11 -I../vendored/logc -I../vendored/uthash
+
 ifdef $(DEBUG)
 CFLAGS+=-DDEBUG -g -O0
 else
@@ -9,68 +11,84 @@ ifdef $(DEBUG_TRACE)
 CFLAGS+=-DDEBUG_TRACE
 endif
 
-SRCS=api.c \
-driver.c \
-emit_build_bazel.c \
-meta_entries.c \
-meta_flags.c \
-meta_packages.c \
-meta_properties.c \
-meta_settings.c \
-meta_values.c \
-metaparser_impl.c \
-obazl_fs.c \
-opam_bootstrap.c \
-utils.c
+# for makeheaders
+SRCS=emit_build_bazel.c opam_bootstrap.c \
+meta_parser/driver.c \
+meta_parser/meta_entries.c \
+meta_parser/meta_flags.c \
+meta_parser/meta_fs.c \
+meta_parser/meta_packages.c \
+meta_parser/meta_properties.c \
+meta_parser/meta_settings.c \
+meta_parser/meta_values.c
 
-api.o: api.c api.h
-driver.o: driver.c driver.h
 emit_build_bazel.o: emit_build_bazel.c emit_build_bazel.h
-meta_entries.o: meta_entries.c meta_entries.h
-meta_flags.o: meta_flags.c meta_flags.h
-meta_packages.o: meta_packages.c meta_packages.h
-meta_properties.o: meta_properties.c meta_properties.h
-meta_settings.o: meta_settings.c meta_settings.h
-meta_values.o: meta_values.c meta_values.h
-metaparser_impl.o: metaparser_impl.c metaparser_impl.h
-obazl_fs.o: obazl_fs.c obazl_fs.h
+
+emit_build_bazel.h: mkhdrs
+
 opam_bootstrap.o: opam_bootstrap.c opam_bootstrap.h
-metalexer.o: metalexer.c metalexer.h
-metaparser.o: metaparser.c metaparser.h
 
-hdrs := $(patsubst %.c,%.h,$(wildcard *.c))
+opam_bootstrap.h: mkhdrs
 
-OBJS=api.o driver.o emit_build_bazel.o meta_entries.o meta_flags.o meta_packages.o meta_properties.o meta_settings.o meta_values.o metaparser_impl.o obazl_fs.o opam_bootstrap.o metalexer.o metaparser.o ../vendored/logc/log.o
+# hdrs := $(patsubst %.c,%.h,$(wildcard *.c))
 
-opam_bootstrap: ${OBJS}
-	$(CC) $(OBJS) -o $@ $(LDFLAGS)
+META_OBJS=meta_parser/driver.o \
+meta_parser/meta_entries.o \
+meta_parser/meta_flags.o \
+meta_parser/meta_packages.o \
+meta_parser/meta_properties.o \
+meta_parser/meta_settings.o \
+meta_parser/meta_values.o \
+meta_parser/meta_fs.o
 
-$(hdrs): mkhdrs
+LOG_OBJS=../vendored/logc/log.o
 
-mkhdrs: makeheaders metaparser.c metalexer.c *.c
-	../vendored/makeheaders/makeheaders ${SRCS} metalexer.c metaparser.c
+BAZEL_OBJS=emit_build_bazel.o opam_bootstrap.o
 
-metaparser.c: metaparser.y lemon
-	../vendored/lemon/lemon -m metaparser.y -T../vendored/lemon/lempar.c
+PARSER_OBJS=meta_parser/metalexer.o meta_parser/metaparser.o
 
-## Assumption is that re2c has already been built...
-metalexer.c:
-	re2c metalexer.re -o metalexer.c
+OBJS=${BAZEL_OBJS} ${LOG_OBJS}
 
-.PHONY: lemon
-lemon:
-	make -C ../vendored/lemon
+opam_bootstrap: ${OBJS} metaparser
+	$(CC) $(OBJS) $(META_OBJS) $(PARSER_OBJS) -o $@ $(LDFLAGS)
 
-.PHONY: logc
-logc:
-	make -C ../vendored/logc
+# meta: ${META_OBJS}
 
-.PHONY: makeheaders
+# parser: ${PARSER_OBJS}
+
+# $(hdrs): mkhdrs
+
+# metalexer.h: metalexer.c mkhdrs
+
+# ## Assumption is that re2c has already been built...
+# metalexer.c:
+# 	re2c metalexer.re -o metalexer.c
+
+# metaparser.c: metaparser.y lemon
+# 	../vendored/lemon/lemon -m metaparser.y -T../vendored/lemon/lempar.c
+
+metaparser:
+	$(MAKE) -C meta_parser all
+
+mkhdrs: makeheaders
+	../vendored/makeheaders/makeheaders ${SRCS}
+
+# obazl_h: makeheaders metaparser.c metalexer.c *.c
+# 	../vendored/makeheaders/makeheaders -h ${SRCS} metalexer.c metaparser.c > obazl.h
+
+
+# .PHONY: lemon
+# lemon:
+# 	make -C ../vendored/lemon
+
+# .PHONY: logc
+# logc:
+# 	make -C ../vendored/logc
+
+# .PHONY: makeheaders
 makeheaders:
-	make -C ../vendored/makeheaders
+	$(MAKE) -C ../vendored/makeheaders
 
 clean:
-	rm -f metaparser.c metaparser.out
-	rm -f metalexer.c
 	rm -f *.h *.o
 	rm -f opam_bootstrap

@@ -34,6 +34,7 @@ union meta_token
 
 struct meta_lexer
 {
+    const char *filename;
     const char *tok;
     const char *cursor;
     const char *limit;
@@ -124,6 +125,8 @@ loop:
         }
 
         wsnl @s1 "requires" @s2 wsnl { return REQUIRES; }
+
+        wsnl @s1 "ppx_runtime_deps" @s2 wsnl { return PPX_RUNTIME_DEPS; }
 
         wsnl "(" @s1 (listws #f1 FLAG #f2 listws)* @s2 ")" wsnl {
         /* we leave it to the parser to tokenize, now that we know each flag is syntactically correct */
@@ -221,7 +224,7 @@ loop:
         EQ { return EQ; }
 
         *         {
-            fprintf(stderr, "ERROR lexing: %s\n", lexer->cursor);
+            fprintf(stderr, "ERROR lexing: %s: %s\n", lexer->filename, lexer->cursor);
             exit(-1);
         }
         end       {
@@ -236,7 +239,8 @@ loop:
     */
 }
 
-void lexer_init(struct meta_lexer *lexer, const char *input)
+void lexer_init(struct meta_lexer *lexer, const char*filename, const char *input)
 {
+    lexer->filename = filename;
     lexer->cursor = input;
 }

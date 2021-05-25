@@ -10,6 +10,14 @@ static int indent = 2;
 static int delta = 2;
 static char *sp = " ";
 
+#if INTERFACE
+typedef char *obzl_meta_value;
+
+struct obzl_meta_values {
+    UT_array *list;             /* list of strings  */
+};
+#endif
+
 /* **************************************************************** */
 EXPORT int obzl_meta_values_count(obzl_meta_values *_values)
 {
@@ -20,14 +28,6 @@ EXPORT obzl_meta_value *obzl_meta_values_nth(obzl_meta_values *_values, int _i)
 {
     return utarray_eltptr(_values->list, _i);
 }
-
-#if INTERFACE
-typedef char *obzl_meta_value;
-
-struct obzl_meta_values {
-    UT_array *list;             /* list of ptrs to char ptrs  */
-};
-#endif
 
 EXPORT obzl_meta_values *obzl_meta_values_new(char *valstr)
 {
